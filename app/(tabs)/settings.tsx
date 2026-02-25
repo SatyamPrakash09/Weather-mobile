@@ -87,7 +87,7 @@ export default function SettingsScreen() {
               className="bg-blue-500 py-4 rounded-xl shadow-md active:bg-blue-600"
             >
               <Text className="text-white text-center font-bold text-lg">
-                Save Settings
+                Save OpenWeather API Key
               </Text>
             </TouchableOpacity>
           </View>

@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
 import * as MediaLibrary from "expo-media-library";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function OpenCamera() {
 
@@ -94,12 +95,18 @@ export default function OpenCamera() {
 
   if (!permission.granted) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.message}>
-          We need permission to use your camera
-        </Text>
-        <Button onPress={requestPermission} title="Grant Permission" />
-      </View>
+      <SafeAreaView className="flex-1">
+          <View style={styles.container} className="items-center justify-center">
+            <Text style={styles.message}>
+              We need permission to use your camera
+            </Text>
+            <Pressable className="bg-blue-500 px-3 py-2 rounded-lg" onPress={requestPermission}>
+              <Text className="text-white font-bold text-lg">
+                Grant Permission
+              </Text>
+            </Pressable>
+          </View>
+      </SafeAreaView>
     );
   }
   // Handles Manual Focus of the camera
