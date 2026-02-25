@@ -14,10 +14,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getApiKey } from "../../utils/storage";
+import DailyWeatherForecast from "@/components/DailyWeatherForecast";
 
 export default function WeatherScreen() {
   const [city, setCity] = useState("");
   const [weather, setWeather] = useState<any>(null);
+  const [forecast, setForecast] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,14 +55,50 @@ export default function WeatherScreen() {
     }
   };
 
+  // forecast fetching
+  const fetchForecast = async (params: string) => {
+    const api = await getApiKey();
+    if (!api) {
+      Alert.alert(
+        "API Key Missing",
+        "Please go to Settings and enter your OpenWeather API key.",
+      );
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(
+        `https://api.openweathermap.org/data/2.5/forecast?${params}&units=metric&appid=${api}`,
+      );
+      const data = await response.json();
+
+      if (response.ok) {
+        setForecast(data);
+      } else {
+        setError(data.message || "Failed to fetch weather");
+        setForecast(null);
+      }
+    } catch (err) {
+      setError(`${err},An error occurred. Please try again.`);
+      setForecast(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handling city name searching
   const handleSearch = () => {
     if (!city.trim()) {
       Alert.alert("Error", "Please enter a city name");
       return;
     }
     fetchWeather(`q=${encodeURIComponent(city.trim())}`);
+    fetchForecast(`q=${encodeURIComponent(city.trim())}`)
   };
 
+  //current location searching
   const handleCurrentLocation = async () => {
     let { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== "granted") {
@@ -73,9 +111,10 @@ export default function WeatherScreen() {
 
     setLoading(true);
     try {
-      let location = await Location.getCurrentPositionAsync({});
+      let location:any = await Location.getCurrentPositionAsync({});
       const { latitude, longitude } = location.coords;
       fetchWeather(`lat=${latitude}&lon=${longitude}`);
+      fetchForecast(`lat=${latitude}&lon=${longitude}`);
     } catch (err) {
       Alert.alert(`${err}, Error", "Could not get current location`);
       setLoading(false);
@@ -138,8 +177,13 @@ export default function WeatherScreen() {
             </TouchableOpacity>
           </View>
         ) : weather ? (
-          <View className="flex-1">
+          <View className="flex gap-2">
             <MainWeatherData weather={weather} />
+            {forecast?.list &&(
+              <View>
+                <DailyWeatherForecast forecast = {forecast}/>
+              </View>
+            )}
           </View>
         ) : (
           <View className="flex-1 justify-center items-center">
@@ -159,6 +203,7 @@ export default function WeatherScreen() {
             )}
           </View>
         )}
+        {/* Weather FOrecast Section */}
       </ScrollView>
     </SafeAreaView>
   );

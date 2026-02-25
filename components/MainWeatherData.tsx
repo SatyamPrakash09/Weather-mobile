@@ -6,7 +6,7 @@ import Feather from '@expo/vector-icons/Feather';
 const MainWeatherData = ({weather}:any) => {
     if (!weather) return null;
     return (
-        <View className='flex mt-6 '>
+        <View className='flex mt-6'>
             <View className='items-center'>
                 <Text className='text-3xl font-bold '>
                     {weather.name}
