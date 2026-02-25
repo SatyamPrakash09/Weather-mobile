@@ -1,98 +1,165 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import MainWeatherData from "@/components/MainWeatherData";
+import { FontAwesome5 } from "@expo/vector-icons";
+import * as Location from "expo-location";
+import { StatusBar } from "expo-status-bar";
+import React, { useState } from "react";
+import {
+    ActivityIndicator,
+    Alert,
+    ScrollView,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { getApiKey } from "../../utils/storage";
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+export default function WeatherScreen() {
+  const [city, setCity] = useState("");
+  const [weather, setWeather] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-export default function HomeScreen() {
+  const fetchWeather = async (params: string) => {
+    const api = await getApiKey();
+    if (!api) {
+      Alert.alert(
+        "API Key Missing",
+        "Please go to Settings and enter your OpenWeather API key.",
+      );
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(
+        `https://api.openweathermap.org/data/2.5/weather?${params}&units=metric&appid=${api}`,
+      );
+      const data = await response.json();
+
+      if (response.ok) {
+        setWeather(data);
+      } else {
+        setError(data.message || "Failed to fetch weather");
+        setWeather(null);
+      }
+    } catch (err) {
+      setError(`${err},An error occurred. Please try again.`);
+      setWeather(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearch = () => {
+    if (!city.trim()) {
+      Alert.alert("Error", "Please enter a city name");
+      return;
+    }
+    fetchWeather(`q=${encodeURIComponent(city.trim())}`);
+  };
+
+  const handleCurrentLocation = async () => {
+    let { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(
+        "Permission Denied",
+        "Permission to access location was denied",
+      );
+      return;
+    }
+
+    setLoading(true);
+    try {
+      let location = await Location.getCurrentPositionAsync({});
+      const { latitude, longitude } = location.coords;
+      fetchWeather(`lat=${latitude}&lon=${longitude}`);
+    } catch (err) {
+      Alert.alert(`${err}, Error", "Could not get current location`);
+      setLoading(false);
+    }
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <SafeAreaView className="flex-1 bg-blue-50">
+      <StatusBar style="dark" />
+      <ScrollView contentContainerStyle={{ flexGrow: 1 }} className="px-6 py-8">
+        <View className="flex-row justify-center bg-blue-200 rounded-2xl mb-3">
+          <Text className=" mr-1 my-2 font-bold text-2xl">Weather X</Text> 
+          <Text className=" my-2 font-bold text-xs self-center">-Onix</Text> 
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+        </View>
+        <View className="flex-row items-center mb-6">
+          <View className="flex-1 flex-row items-center bg-white rounded-2xl px-4 py-2 shadow-sm border border-blue-100">
+            <FontAwesome5 name="search" size={18} color="#94a3b8" />
+            <TextInput
+              className="flex-1 ml-3 text-gray-800 text-lg py-1"
+              placeholder="Search City..."
+              value={city}
+              onChangeText={setCity}
+              onSubmitEditing={handleSearch}
+            />
+          </View>
+          <TouchableOpacity
+            onPress={handleCurrentLocation}
+            className="ml-3 bg-blue-500 p-4 rounded-2xl shadow-md active:bg-blue-600"
+          >
+            <FontAwesome5 name="location-arrow" size={20} color="white" />
+          </TouchableOpacity>
+        </View>
+
+        {loading ? (
+          <View className="flex-1 justify-center items-center">
+            <ActivityIndicator size="large" color="#3b82f6" />
+            <Text className="mt-4 text-blue-500 font-medium">
+              Fetching Weather...
+            </Text>
+          </View>
+        ) : error ? (
+          <View className="flex-1 justify-center items-center px-6">
+            <View className="bg-red-100 p-4 rounded-full mb-4">
+              <FontAwesome5
+                name="exclamation-triangle"
+                size={30}
+                color="#ef4444"
+              />
+            </View>
+            <Text className="text-red-600 text-center text-lg font-bold">
+              Error
+            </Text>
+            <Text className="text-red-500 text-center mt-1">{error}</Text>
+            <TouchableOpacity
+              onPress={() => setError(null)}
+              className="mt-6 bg-white px-6 py-2 rounded-full border border-red-200"
+            >
+              <Text className="text-red-500 font-bold">Clear</Text>
+            </TouchableOpacity>
+          </View>
+        ) : weather ? (
+          <View className="flex-1">
+            <MainWeatherData weather={weather} />
+          </View>
+        ) : (
+          <View className="flex-1 justify-center items-center">
+            <View className="bg-blue-100 p-8 rounded-full mb-6">
+              <FontAwesome5 name="cloud-sun" size={60} color="#3b82f6" />
+            </View>
+            <Text className="text-blue-800 text-2xl font-bold">
+              Weather App
+            </Text>
+            <Text className="text-blue-500 text-center mt-2 px-10">
+              Enter a city name or use your current location to see the weather.
+            </Text>
+            {(!getApiKey)&&(
+              <Text className="text-red-400/90 text-center mt-5 px-10">
+                If you have not entered api key , Please Enter your WeatherApp API Key in the text box under setting tab.
+              </Text>
+            )}
+          </View>
+        )}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
-});
