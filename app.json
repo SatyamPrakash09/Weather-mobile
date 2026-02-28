@@ -17,7 +17,8 @@
         "foregroundImage": "./assets/images/weather-icon.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.satyam_prakash_09.WeatherX"
     },
     "web": {
       "output": "static",
@@ -43,6 +44,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "2813febc-9ba1-4094-9c56-bb78a4b50e11"
+      }
     }
   }
 }

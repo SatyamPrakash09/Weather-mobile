@@ -1,20 +1,20 @@
+import DailyWeatherForecast from "@/components/DailyWeatherForecast";
 import MainWeatherData from "@/components/MainWeatherData";
-import { FontAwesome5 } from "@expo/vector-icons";
+import { FontAwesome5, Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { StatusBar } from "expo-status-bar";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getApiKey } from "../../utils/storage";
-import DailyWeatherForecast from "@/components/DailyWeatherForecast";
 
 export default function WeatherScreen() {
   const [city, setCity] = useState("");
@@ -22,71 +22,54 @@ export default function WeatherScreen() {
   const [forecast, setForecast] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [apiKeyExists, setApiKeyExists] = useState(true);
 
-  const fetchWeather = async (params: string) => {
-    const api = await getApiKey();
-    if (!api) {
-      Alert.alert(
-        "API Key Missing",
-        "Please go to Settings and enter your OpenWeather API key.",
-      );
-      return;
-    }
-
+  const fetchWeatherData = async (params: string) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(
-        `https://api.openweathermap.org/data/2.5/weather?${params}&units=metric&appid=${api}`,
-      );
-      const data = await response.json();
+      const baseUrl = process.env.EXPO_PUBLIC_BASE_URL || "https://weatherx-backend.onrender.com";
+      
+      const cityMatch = params.match(/q=([^&]*)/);
+      const latMatch = params.match(/lat=([^&]*)/);
+      const lonMatch = params.match(/lon=([^&]*)/);
+      
+      let query = "";
+      if (cityMatch) query = `city=${cityMatch[1]}`;
+      else if (latMatch && lonMatch) query = `lat=${latMatch[1]}&lon=${lonMatch[1]}`;
 
-      if (response.ok) {
-        setWeather(data);
+      // Fetch both weather and forecast in parallel
+      const [weatherRes, forecastRes] = await Promise.all([
+        fetch(`${baseUrl}/weather?${query}`),
+        fetch(`${baseUrl}/forecast?${query}`)
+      ]);
+
+      const weatherData = await weatherRes.json();
+      const forecastData = await forecastRes.json();
+
+      if (weatherRes.ok) {
+        setWeather(weatherData.openWeather);
       } else {
-        setError(data.message || "Failed to fetch weather");
+        setError(weatherData.error || "Failed to fetch weather");
         setWeather(null);
       }
-    } catch (err) {
-      setError(`${err},An error occurred. Please try again.`);
-      setWeather(null);
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  // forecast fetching
-  const fetchForecast = async (params: string) => {
-    const api = await getApiKey();
-    if (!api) {
-      Alert.alert(
-        "API Key Missing",
-        "Please go to Settings and enter your OpenWeather API key.",
-      );
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch(
-        `https://api.openweathermap.org/data/2.5/forecast?${params}&units=metric&appid=${api}`,
-      );
-      const data = await response.json();
-
-      if (response.ok) {
-        setForecast(data);
+      if (forecastRes.ok) {
+        setForecast(forecastData.weatherApi);
       } else {
-        setError(data.message || "Failed to fetch weather");
+        // If forecast fails but weather succeeds, we'll still show weather
+        console.error("Forecast failed:", forecastData.error);
         setForecast(null);
       }
     } catch (err) {
-      setError(`${err},An error occurred. Please try again.`);
+      setError("An error occurred. Please try again.");
+      setWeather(null);
       setForecast(null);
     } finally {
       setLoading(false);
     }
   };
+
 
   // Handling city name searching
   const handleSearch = () => {
@@ -94,8 +77,7 @@ export default function WeatherScreen() {
       Alert.alert("Error", "Please enter a city name");
       return;
     }
-    fetchWeather(`q=${encodeURIComponent(city.trim())}`);
-    fetchForecast(`q=${encodeURIComponent(city.trim())}`)
+    fetchWeatherData(`q=${encodeURIComponent(city.trim())}`);
   };
 
   //current location searching
@@ -111,28 +93,91 @@ export default function WeatherScreen() {
 
     setLoading(true);
     try {
-      let location:any = await Location.getCurrentPositionAsync({});
+      let location: any = await Location.getCurrentPositionAsync({});
       const { latitude, longitude } = location.coords;
-      fetchWeather(`lat=${latitude}&lon=${longitude}`);
-      fetchForecast(`lat=${latitude}&lon=${longitude}`);
+
+      // update the search input with the detected city name
+      try {
+        const [place] = await Location.reverseGeocodeAsync({
+          latitude,
+          longitude,
+        });
+        if (place) {
+          const name = place.city || place.region || place.name || "";
+          if (name) setCity(name);
+        }
+      } catch (geoErr) {
+        console.warn("reverse geocode failed", geoErr);
+      }
+
+      fetchWeatherData(`lat=${latitude}&lon=${longitude}`);
     } catch (err) {
-      Alert.alert(`${err}, Error", "Could not get current location`);
+      Alert.alert("Error", `Could not get current location: ${err}`);
       setLoading(false);
     }
   };
 
+  useEffect(() => {
+    const checkApiKey = async () => {
+      const key = await getApiKey();
+      setApiKeyExists(!!key);
+    };
+    checkApiKey();
+
+    const fetchInitialLocation = async () => {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        return; // Don't show alert here to avoid annoying user on startup
+      }
+
+      setLoading(true);
+      try {
+        let location: any = await Location.getCurrentPositionAsync({});
+        const { latitude, longitude } = location.coords;
+
+        // update the search input with the detected city name
+        try {
+          const [place] = await Location.reverseGeocodeAsync({
+            latitude,
+            longitude,
+          });
+          if (place) {
+            const name = place.city || place.region || place.name || "";
+            if (name) setCity(name);
+          }
+        } catch (geoErr) {
+          console.warn("reverse geocode failed", geoErr);
+        }
+
+        fetchWeatherData(`lat=${latitude}&lon=${longitude}`);
+      } catch (err) {
+        console.warn("Initial location fetch failed", err);
+        setLoading(false);
+      }
+    };
+    fetchInitialLocation();
+  }, []);
+
+  
   return (
     <SafeAreaView className="flex-1 bg-blue-50">
       <StatusBar style="dark" />
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} className="px-6 py-8">
         <View className="flex-row justify-center bg-blue-200 rounded-2xl mb-3">
-          <Text className=" mr-1 my-2 font-bold text-2xl">Weather X</Text> 
-          <Text className=" my-2 font-bold text-xs self-center">-Onix</Text> 
-
+          <Text className=" mr-1 my-2">
+            <Ionicons
+              name="cloud"
+              color={"#3b82f6"}
+              className="font-bold text-2xl "
+              size={20}
+            />
+          </Text>
+          <Text className=" mr-1 my-2 font-bold text-2xl">Weather X</Text>
+          <Text className=" my-2 font-bold text-xs self-center">-Onix</Text>
         </View>
-        <View className="flex-row items-center mb-6">
-          <View className="flex-1 flex-row items-center bg-white rounded-2xl px-4 py-2 shadow-sm border border-blue-100">
-            <FontAwesome5 name="search" size={18} color="#94a3b8" />
+        <View className="flex-row items-center mb-6 gap-2">
+          <View className="flex-1 flex-row items-center bg-white rounded-2xl px-4 py-2 shadow-sm border border-blue-100 ">
+            <FontAwesome5 name="map" size={18} color="#94a3b8" />
             <TextInput
               className="flex-1 ml-3 text-gray-800 text-lg py-1"
               placeholder="Search City..."
@@ -140,10 +185,26 @@ export default function WeatherScreen() {
               onChangeText={setCity}
               onSubmitEditing={handleSearch}
             />
+            {/* Clear Text in search box */}
+            <TouchableOpacity
+              onPress={() => {
+                setCity("");
+                setWeather(null);
+                setForecast(null);
+              }}
+            >
+              <Ionicons name="close-outline" size={18} />
+            </TouchableOpacity>
           </View>
           <TouchableOpacity
+            className=" bg-blue-500 p-4 rounded-2xl shadow-md active:bg-blue-600"
+            onPress={handleSearch}
+          >
+            <Ionicons name="search" size={20} color="white" />
+          </TouchableOpacity>
+          <TouchableOpacity
             onPress={handleCurrentLocation}
-            className="ml-3 bg-blue-500 p-4 rounded-2xl shadow-md active:bg-blue-600"
+            className=" bg-blue-500 p-4 rounded-2xl shadow-md active:bg-blue-600"
           >
             <FontAwesome5 name="location-arrow" size={20} color="white" />
           </TouchableOpacity>
@@ -179,9 +240,9 @@ export default function WeatherScreen() {
         ) : weather ? (
           <View className="flex gap-2">
             <MainWeatherData weather={weather} />
-            {forecast?.list &&(
+            {forecast?.forecast?.forecastday && (
               <View>
-                <DailyWeatherForecast forecast = {forecast}/>
+                <DailyWeatherForecast forecast={forecast} />
               </View>
             )}
           </View>
@@ -196,9 +257,10 @@ export default function WeatherScreen() {
             <Text className="text-blue-500 text-center mt-2 px-10">
               Enter a city name or use your current location to see the weather.
             </Text>
-            {(!getApiKey)&&(
+            {!apiKeyExists && (
               <Text className="text-red-400/90 text-center mt-5 px-10">
-                If you have not entered api key , Please Enter your WeatherApp API Key in the text box under setting tab.
+                If you have not entered an API key, please enter your WeatherApp
+                API Key in the settings tab.
               </Text>
             )}
           </View>

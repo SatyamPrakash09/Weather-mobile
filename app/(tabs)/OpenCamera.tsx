@@ -2,7 +2,6 @@ import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
 import { useRef, useState } from "react";
 
 import {
-  Button,
   StyleSheet,
   Text,
   TouchableOpacity,
